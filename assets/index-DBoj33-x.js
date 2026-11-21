@@ -141,7 +141,7 @@ Error generating stack: `+u.message+`
         <span>${ch(M.condition.shortLabel)}</span>
       </div>`:"";return`
     <div>
-      <div style="display:flex; align-items:center; gap:6px;">
+      <div style="display:flex; align-items:center; gap:6px; white-space:nowrap;">
         <span style="width:6px; height:6px; border-radius:999px; background:${q.color}; box-shadow:0 0 8px ${q.color}; flex-shrink:0;"></span>
         <span style="font-size:12.5px; font-weight:600; color:#FFFFFF; line-height:1.3;">${ch(M.name)}</span>
       </div>
