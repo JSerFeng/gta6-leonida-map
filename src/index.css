@@ -1,0 +1,220 @@
+@import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+
+:root {
+  --vice-pink: #ff4d8d;
+  --vice-coral: #ff7a6b;
+  --vice-gold: #ffb347;
+  --vice-cyan: #2ee6d6;
+  --vice-violet: #b589ff;
+  --vice-bg: #080610;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background-color: var(--vice-bg);
+  font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
+}
+
+.font-display {
+  font-family: 'Bebas Neue', 'Noto Sans SC', sans-serif;
+  letter-spacing: 0.08em;
+}
+
+.font-mono-code {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+}
+
+/* GTA VI Sunset Spectrum */
+.vice-gradient-text {
+  background: linear-gradient(120deg, #ffd166 0%, #ff7a6b 45%, #ff4d8d 78%, #c77dff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.vice-sunset-bar {
+  background: linear-gradient(90deg, #ffd166 0%, #ff4d8d 48%, #b589ff 76%, #2ee6d6 100%);
+}
+
+/* Luxury Dusk Glass Surface */
+.vice-glass {
+  background: linear-gradient(
+    165deg,
+    rgba(18, 13, 32, 0.78) 0%,
+    rgba(10, 8, 20, 0.84) 100%
+  );
+  backdrop-filter: blur(26px) saturate(175%);
+  -webkit-backdrop-filter: blur(26px) saturate(175%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 20px 50px rgba(3, 2, 10, 0.58),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* Leaflet map container overrides */
+.leaflet-container {
+  background: #0cafca !important;
+  font-family: 'Noto Sans SC', sans-serif !important;
+  outline: none;
+}
+
+.leaflet-tile {
+  image-rendering: auto;
+  width: 257px !important;
+  height: 257px !important;
+}
+
+/* Ultra-Minimal Colored Dot Markers */
+.leonida-marker-wrapper {
+  background: transparent !important;
+  border: none !important;
+}
+
+.leonida-dot-hit {
+  position: relative;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.leonida-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 9999px;
+  background: var(--pin-color, #ff4d8d);
+  border: 2px solid rgba(10, 8, 20, 0.92);
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.65),
+    0 0 0 1px rgba(255, 255, 255, 0.22),
+    0 0 12px var(--pin-glow, rgba(255, 77, 141, 0.65));
+  transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 160ms ease, opacity 160ms ease;
+}
+
+.leonida-dot-hit:hover .leonida-dot,
+.leonida-dot-hit.is-selected .leonida-dot {
+  transform: scale(1.42);
+  box-shadow:
+    0 4px 14px rgba(0, 0, 0, 0.75),
+    0 0 0 2px rgba(255, 255, 255, 0.5),
+    0 0 20px var(--pin-glow, rgba(255, 77, 141, 0.95));
+}
+
+.leonida-dot-hit.is-selected::after {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  border: 1.5px solid var(--pin-color, #ff4d8d);
+  opacity: 0.85;
+  pointer-events: none;
+  animation: pin-pulse 1.8s ease-out infinite;
+}
+
+.leonida-dot-hit.is-visited .leonida-dot {
+  opacity: 0.36;
+  filter: saturate(0.4);
+}
+
+.leonida-dot-hit.is-visited .leonida-dot-lock {
+  opacity: 0.45;
+}
+
+.leonida-dot-hit.is-visited:hover .leonida-dot,
+.leonida-dot-hit.is-visited.is-selected .leonida-dot,
+.leonida-dot-hit.is-visited:hover .leonida-dot-lock,
+.leonida-dot-hit.is-visited.is-selected .leonida-dot-lock {
+  opacity: 1;
+  filter: saturate(1);
+}
+
+/* Tiny Minimal Lock Indicator beside Gated Dots */
+.leonida-dot-lock {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  background: rgba(11, 8, 22, 0.94);
+  color: #ffd166;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 209, 102, 0.7);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.7);
+  transition: transform 160ms ease, opacity 160ms ease;
+}
+
+.leonida-dot-lock.is-missable {
+  color: #ff8e92;
+  border-color: rgba(255, 110, 118, 0.8);
+}
+
+.leonida-dot-hit:hover .leonida-dot-lock,
+.leonida-dot-hit.is-selected .leonida-dot-lock {
+  transform: translate(1px, -1px) scale(1.15);
+}
+
+@keyframes pin-pulse {
+  0% {
+    transform: scale(0.92);
+    opacity: 0.85;
+  }
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+
+/* Ultra-Minimal Glass Hover Tooltip */
+.leaflet-tooltip.leonida-tooltip {
+  background: rgba(12, 9, 22, 0.92);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 12px;
+  color: #ffffff;
+  padding: 7px 11px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+  white-space: normal;
+  max-width: 240px;
+}
+
+.leaflet-tooltip-top.leonida-tooltip::before {
+  border-top-color: rgba(12, 9, 22, 0.92);
+}
+.leaflet-tooltip-bottom.leonida-tooltip::before {
+  border-bottom-color: rgba(12, 9, 22, 0.92);
+}
+.leaflet-tooltip-left.leonida-tooltip::before {
+  border-left-color: rgba(12, 9, 22, 0.92);
+}
+.leaflet-tooltip-right.leonida-tooltip::before {
+  border-right-color: rgba(12, 9, 22, 0.92);
+}
+
+/* Minimal Scrollbars */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 77, 141, 0.45);
+}
