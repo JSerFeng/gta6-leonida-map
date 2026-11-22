@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Check,
+  ChevronDown,
   Eye,
   EyeOff,
   List,
@@ -38,6 +39,7 @@ export default function App() {
   const [hideVisited, setHideVisited] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [isMapLoading, setIsMapLoading] = useState(true);
 
   const [selectedLoc, setSelectedLoc] = useState<LocationItem | null>(null);
   const [visitedIds, setVisitedIds] = useState<Set<string>>(() => loadVisited());
@@ -57,6 +59,21 @@ export default function App() {
       // ignore storage errors
     }
   }, [visitedIds]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (selectedLoc) setSelectedLoc(null);
+        else if (drawerOpen) setDrawerOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [selectedLoc, drawerOpen]);
+
+  const handleLoadingChange = useCallback((loading: boolean) => {
+    setIsMapLoading(loading);
+  }, []);
 
   const toggleCategory = (id: CategoryId) => {
     setActiveCategories((prev) => {
@@ -82,12 +99,14 @@ export default function App() {
     });
   };
 
+  const visitedFilterSet = hideVisited ? visitedIds : null;
+
   const filteredLocations = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return LOCATIONS.filter((loc) => {
       if (!activeCategories.has(loc.category)) return false;
       if (onlyConditional && !loc.condition) return false;
-      if (hideVisited && visitedIds.has(loc.id)) return false;
+      if (visitedFilterSet && visitedFilterSet.has(loc.id)) return false;
 
       if (chapterProgress > 0) {
         const req = loc.condition?.chapter ?? 1;
@@ -99,13 +118,13 @@ export default function App() {
       }
 
       if (q) {
-        const hay = `${loc.name} ${loc.subtitle} ${loc.regionLabel} ${loc.condition?.shortLabel ?? ''}`.toLowerCase();
+        const hay = `${loc.name} ${loc.subtitle} ${loc.regionLabel} ${loc.description} ${loc.condition?.shortLabel ?? ''}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
 
       return true;
     });
-  }, [activeCategories, onlyConditional, hideVisited, visitedIds, chapterProgress, searchQuery]);
+  }, [activeCategories, onlyConditional, visitedFilterSet, chapterProgress, searchQuery]);
 
   const handleSelectLocation = (loc: LocationItem | null) => {
     setSelectedLoc(loc);
@@ -136,14 +155,17 @@ export default function App() {
     setFlyTarget({ coords: loc.coords, zoom: 5.8, ts: Date.now() });
   };
 
+  const hideMobileBottomWidgets = Boolean(selectedLoc || drawerOpen);
+
   return (
-    <div className="relative w-screen h-screen overflow-hidden select-none bg-[#080610]">
+    <div className="relative w-screen h-screen h-dvh overflow-hidden select-none bg-[#080610]">
       {/* Full-Viewport Official High-Res Leonida Interactive Map */}
       <LeonidaMap
         locations={filteredLocations}
         selectedId={selectedLoc?.id ?? null}
         visitedIds={visitedIds}
         onSelect={handleSelectLocation}
+        onLoadingChange={handleLoadingChange}
         flyTarget={flyTarget}
         resetSignal={resetSignal}
         zoomCommand={zoomCommand}
@@ -153,14 +175,14 @@ export default function App() {
       <div className="pointer-events-none fixed inset-x-0 top-0 h-24 bg-gradient-to-b from-[#080610]/55 via-[#080610]/15 to-transparent z-[900]" />
 
       {/* Minimal Floating Top HUD */}
-      <header className="fixed top-4 inset-x-4 z-[1050] flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+      <header className="fixed top-[calc(0.75rem+env(safe-area-inset-top))] sm:top-4 inset-x-3 sm:inset-x-4 z-[1050] flex flex-col sm:flex-row sm:flex-nowrap items-start sm:items-center justify-between gap-2 pointer-events-none">
         {/* Brand Capsule */}
-        <div className="pointer-events-auto vice-glass rounded-full pl-2 pr-3.5 py-1.5 flex items-center gap-2.5">
+        <div className="pointer-events-auto vice-glass rounded-full pl-1.5 pr-3 sm:pl-2 sm:pr-3.5 py-1 sm:py-1.5 flex items-center gap-2 sm:gap-2.5 shrink-0">
           <button
             onClick={handleToggleDrawer}
             title="地点目录"
             aria-label="地点目录"
-            className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
+            className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors cursor-pointer shrink-0 ${
               drawerOpen
                 ? 'bg-[#FF4D8D]/25 text-[#FF4D8D]'
                 : 'text-white/75 hover:text-white hover:bg-white/10'
@@ -169,20 +191,22 @@ export default function App() {
             <List className="w-3.5 h-3.5" />
           </button>
 
-          <div className="flex items-baseline gap-1.5">
-            <span className="font-display text-[21px] leading-none vice-gradient-text">VI</span>
-            <span className="font-display text-[19px] leading-none tracking-[0.14em] text-white/95">
+          <div className="flex items-baseline gap-1.5 whitespace-nowrap">
+            <span className="font-display text-[20px] sm:text-[21px] leading-none vice-gradient-text">
+              VI
+            </span>
+            <span className="font-display text-[18px] sm:text-[19px] leading-none tracking-[0.14em] text-white/95">
               LEONIDA
             </span>
           </div>
 
-          <span className="text-[11px] font-mono-code text-white/45 pl-0.5">
+          <span className="text-[11px] font-mono-code text-white/45 pl-0.5 whitespace-nowrap">
             {visitedIds.size}/{LOCATIONS.length}
           </span>
         </div>
 
         {/* Minimal Filter Capsule */}
-        <div className="pointer-events-auto vice-glass rounded-full px-1.5 py-1 flex items-center gap-0.5 overflow-x-auto max-w-full">
+        <div className="pointer-events-auto vice-glass rounded-full px-1 sm:px-1.5 py-1 flex items-center gap-0.5 overflow-x-auto no-scrollbar max-w-full shrink-0">
           {CATEGORIES.map((cat) => {
             const active = activeCategories.has(cat.id);
             return (
@@ -190,14 +214,14 @@ export default function App() {
                 key={cat.id}
                 onClick={() => toggleCategory(cat.id)}
                 title={cat.shortDesc}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap cursor-pointer ${
+                className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-full text-[11.5px] sm:text-xs font-medium transition-all whitespace-nowrap shrink-0 cursor-pointer ${
                   active
                     ? 'text-white bg-white/[0.11]'
                     : 'text-white/35 hover:text-white/70'
                 }`}
               >
                 <span
-                  className="w-1.5 h-1.5 rounded-full transition-opacity"
+                  className="w-1.5 h-1.5 rounded-full transition-opacity shrink-0"
                   style={{
                     backgroundColor: cat.color,
                     boxShadow: active ? `0 0 8px ${cat.color}` : 'none',
@@ -209,7 +233,7 @@ export default function App() {
             );
           })}
 
-          <div className="h-3.5 w-px bg-white/12 mx-1 shrink-0" />
+          <div className="h-3.5 w-px bg-white/12 mx-0.5 sm:mx-1 shrink-0" />
 
           {/* Icon-only Condition Lock Toggle */}
           <button
@@ -226,18 +250,21 @@ export default function App() {
           </button>
 
           {/* Compact Chapter Filter */}
-          <select
-            aria-label="章节筛选"
-            value={chapterProgress}
-            onChange={(e) => setChapterProgress(Number(e.target.value))}
-            className="shrink-0 whitespace-nowrap bg-transparent hover:bg-white/[0.08] rounded-full px-2.5 py-1 text-xs font-mono-code text-white/80 outline-none cursor-pointer transition-colors"
-          >
-            {CHAPTER_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value} className="bg-[#120d22] text-white">
-                {opt.label}
-              </option>
-            ))}
-          </select>
+          <div className="relative inline-flex items-center shrink-0">
+            <select
+              aria-label="章节筛选"
+              value={chapterProgress}
+              onChange={(e) => setChapterProgress(Number(e.target.value))}
+              className="appearance-none whitespace-nowrap bg-transparent hover:bg-white/[0.08] rounded-full pl-2 pr-5 py-1 text-[11.5px] sm:text-xs font-mono-code text-white/80 outline-none cursor-pointer transition-colors"
+            >
+              {CHAPTER_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value} className="bg-[#120d22] text-white">
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="w-3 h-3 text-white/45 pointer-events-none absolute right-1.5" />
+          </div>
 
           {/* Hide Visited Toggle */}
           {visitedIds.size > 0 && (
@@ -257,15 +284,15 @@ export default function App() {
         </div>
       </header>
 
-      {/* Collapsible Left Minimalist Directory */}
+      {/* Collapsible Minimalist Directory Drawer */}
       {drawerOpen && (
         <aside
           aria-label="地点目录"
-          className="fixed z-[1080] left-4 top-[132px] lg:top-[74px] bottom-16 w-[calc(100vw-2rem)] sm:w-[296px] vice-glass rounded-2xl overflow-hidden flex flex-col"
+          className="fixed z-[1080] left-3 right-3 sm:left-4 sm:right-auto top-[calc(6.5rem+env(safe-area-inset-top))] sm:top-[74px] bottom-[calc(0.75rem+env(safe-area-inset-bottom))] sm:bottom-4 md:bottom-16 sm:w-[296px] vice-glass rounded-2xl overflow-hidden flex flex-col"
         >
           <div className="h-[2px] w-full vice-sunset-bar shrink-0" />
 
-          <div className="p-2.5 border-b border-white/[0.08] flex items-center gap-1.5">
+          <div className="p-2.5 border-b border-white/[0.08] flex items-center gap-1.5 shrink-0">
             <div className="relative flex-1">
               <Search className="w-3.5 h-3.5 text-white/35 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
@@ -278,6 +305,7 @@ export default function App() {
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}
+                  aria-label="清空搜索"
                   className="absolute right-2 top-1/2 -translate-y-1/2 text-white/40 hover:text-white cursor-pointer"
                 >
                   <X className="w-3.5 h-3.5" />
@@ -286,7 +314,7 @@ export default function App() {
             </div>
             <button
               onClick={() => setDrawerOpen(false)}
-              className="p-1.5 rounded-xl text-white/45 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+              className="p-1.5 rounded-xl text-white/45 hover:text-white hover:bg-white/10 transition-colors cursor-pointer shrink-0"
               aria-label="关闭目录"
             >
               <X className="w-3.5 h-3.5" />
@@ -307,7 +335,7 @@ export default function App() {
                   <button
                     key={loc.id}
                     onClick={() => handleSelectFromList(loc)}
-                    className={`w-full text-left px-3 py-2 rounded-xl transition-all cursor-pointer flex items-center justify-between gap-2 ${
+                    className={`w-full text-left px-3 py-2.5 sm:py-2 rounded-xl transition-all cursor-pointer flex items-center justify-between gap-2 ${
                       isSelected
                         ? 'bg-white/[0.12] text-white'
                         : 'hover:bg-white/[0.06] text-white/85'
@@ -346,7 +374,7 @@ export default function App() {
         </aside>
       )}
 
-      {/* Right Detail Card */}
+      {/* Detail Card (Desktop: floating right / Mobile: clean bottom sheet) */}
       <DetailPanel
         location={selectedLoc}
         isVisited={selectedLoc ? visitedIds.has(selectedLoc.id) : false}
@@ -355,7 +383,20 @@ export default function App() {
         onFocusMap={handleFocusLocation}
       />
 
-      {/* Bottom-Left Pure County Pills */}
+      {/* Minimal Bottom-Corner Tile Loading Spinner */}
+      <div
+        role="status"
+        aria-label="加载地图"
+        aria-hidden={!isMapLoading}
+        data-map-loading={isMapLoading ? 'true' : 'false'}
+        className={`pointer-events-none fixed z-[1040] bottom-[calc(0.75rem+env(safe-area-inset-bottom))] left-3 sm:bottom-4 sm:left-auto sm:right-[62px] w-8 h-8 rounded-full vice-glass items-center justify-center transition-all duration-200 ${
+          hideMobileBottomWidgets ? 'hidden sm:flex' : 'flex'
+        } ${isMapLoading ? 'opacity-100 scale-100' : 'opacity-0 scale-90'}`}
+      >
+        <span className="vice-spinner-ring" />
+      </div>
+
+      {/* Bottom-Left Pure County Pills (Desktop) */}
       <nav
         aria-label="区域定位"
         className="fixed bottom-4 left-4 z-[1040] hidden md:flex items-center gap-0.5 vice-glass rounded-full p-1"
@@ -364,15 +405,19 @@ export default function App() {
           <button
             key={c.id}
             onClick={() => setFlyTarget({ coords: c.center, zoom: c.zoom, ts: Date.now() })}
-            className="px-3 py-1 rounded-full text-[11.5px] text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            className="px-3 py-1 rounded-full text-[11.5px] text-white/70 hover:text-white hover:bg-white/10 transition-colors whitespace-nowrap cursor-pointer"
           >
             {c.label}
           </button>
         ))}
       </nav>
 
-      {/* Bottom-Right Icon-Only Zoom Controls */}
-      <div className="fixed bottom-4 right-4 z-[1040]">
+      {/* Bottom-Right Icon-Only Zoom Controls (Hidden on mobile while sheet/drawer is open) */}
+      <div
+        className={`fixed bottom-[calc(0.75rem+env(safe-area-inset-bottom))] sm:bottom-4 right-3 sm:right-4 z-[1040] ${
+          hideMobileBottomWidgets ? 'hidden sm:block' : ''
+        }`}
+      >
         <div className="vice-glass rounded-full p-1 flex flex-col gap-0.5">
           <button
             onClick={() => setZoomCommand({ delta: 0.9, ts: Date.now() })}

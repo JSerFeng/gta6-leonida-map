@@ -10,27 +10,21 @@ export interface UnlockCondition {
   chapter?: number;
   /** Short badge label shown on hover tooltip & lock pill */
   shortLabel: string;
-  /** Non-spoiler explanation of the condition */
-  detail: string;
 }
 
 export interface LocationItem {
   id: string;
   /** 100% spoiler-free title */
   name: string;
-  /** Geographic sub-label */
+  /** Geographic sub-label (used for search) */
   subtitle: string;
   county: CountyId;
   regionLabel: string;
   category: CategoryId;
   /** Percentage coordinates on the official Leonida map image: [xPct (0..100), yPct (0..100)] */
   coords: [number, number];
-  /** Spoiler-free guidance: where to look / approach */
-  whereToLook: string;
-  /** Spoiler-free guidance: how to interact / trigger */
-  howToTrigger: string;
-  /** Optional non-spoiler practical note */
-  tip?: string;
+  /** Concise, zero-spoiler guidance combining where to look and how to interact */
+  description: string;
   /** Optional progression / time / tool / weather condition (shows lock icon) */
   condition?: UnlockCondition;
   /** Optional WAiNK app scan tag (non-spoiler) */

@@ -9,6 +9,7 @@ interface LeonidaMapProps {
   selectedId: string | null;
   visitedIds: Set<string>;
   onSelect: (loc: LocationItem | null) => void;
+  onLoadingChange?: (loading: boolean) => void;
   flyTarget: { coords: [number, number]; zoom?: number; ts: number } | null;
   resetSignal: number;
   zoomCommand: { delta: number; ts: number } | null;
@@ -57,8 +58,8 @@ function buildMarkerIcon(loc: LocationItem, isSelected: boolean, isVisited: bool
         ${lockBadge}
       </div>
     `,
-    iconSize: [26, 26],
-    iconAnchor: [13, 13],
+    iconSize: [36, 36],
+    iconAnchor: [18, 18],
   });
 }
 
@@ -75,7 +76,7 @@ function buildTooltipHtml(loc: LocationItem): string {
           : 'rgba(255, 179, 71, 0.36)'
       }; color:${
         loc.condition.type === 'missable' ? '#FF9A9E' : '#FFD166'
-      }; font-size:11px; display:inline-flex; align-items:center; gap:5px; line-height:1.3;">
+      }; font-size:11px; display:inline-flex; align-items:center; gap:5px; line-height:1.3; white-space:nowrap;">
         <span style="flex-shrink:0; display:inline-flex;">${LOCK_SVG}</span>
         <span>${escapeHtml(loc.condition.shortLabel)}</span>
       </div>`
@@ -83,7 +84,7 @@ function buildTooltipHtml(loc: LocationItem): string {
 
   return `
     <div>
-      <div style="display:flex; align-items:center; gap:6px;">
+      <div style="display:flex; align-items:center; gap:6px; white-space:nowrap;">
         <span style="width:6px; height:6px; border-radius:999px; background:${meta.color}; box-shadow:0 0 8px ${meta.color}; flex-shrink:0;"></span>
         <span style="font-size:12.5px; font-weight:600; color:#FFFFFF; line-height:1.3;">${escapeHtml(loc.name)}</span>
       </div>
@@ -92,11 +93,18 @@ function buildTooltipHtml(loc: LocationItem): string {
   `;
 }
 
+interface MarkerEntry {
+  marker: L.Marker;
+  loc: LocationItem;
+  cleanupTouch?: () => void;
+}
+
 export function LeonidaMap({
   locations,
   selectedId,
   visitedIds,
   onSelect,
+  onLoadingChange,
   flyTarget,
   resetSignal,
   zoomCommand,
@@ -104,8 +112,18 @@ export function LeonidaMap({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const layerGroupRef = useRef<L.LayerGroup | null>(null);
+  const markersRef = useRef<Map<string, MarkerEntry>>(new Map());
+  const lastMarkerTapRef = useRef<{ id: string; ts: number }>({ id: '', ts: 0 });
+
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
+  const onLoadingChangeRef = useRef(onLoadingChange);
+  onLoadingChangeRef.current = onLoadingChange;
+
+  const selectedIdRef = useRef(selectedId);
+  selectedIdRef.current = selectedId;
+  const visitedIdsRef = useRef(visitedIds);
+  visitedIdsRef.current = visitedIds;
 
   useEffect(() => {
     const el = containerRef.current;
@@ -137,17 +155,60 @@ export function LeonidaMap({
     });
 
     const baseUrl = import.meta.env.BASE_URL || './';
-    L.tileLayer(`${baseUrl}tiles/{z}/{x}/{y}.jpg`, {
+
+    // Track tile loading state for subtle bottom-corner spinner
+    let loadSettleTimer: number | null = null;
+    let safetyClearTimer: number | null = null;
+    const setMapLoading = (loading: boolean) => {
+      if (loadSettleTimer !== null) {
+        window.clearTimeout(loadSettleTimer);
+        loadSettleTimer = null;
+      }
+      if (safetyClearTimer !== null) {
+        window.clearTimeout(safetyClearTimer);
+        safetyClearTimer = null;
+      }
+      if (loading) {
+        onLoadingChangeRef.current?.(true);
+        // Safety fallback so spinner never stalls on slow/cached edge cases
+        safetyClearTimer = window.setTimeout(() => {
+          onLoadingChangeRef.current?.(false);
+        }, 6000);
+      } else {
+        loadSettleTimer = window.setTimeout(() => {
+          onLoadingChangeRef.current?.(false);
+        }, 180);
+      }
+    };
+
+    setMapLoading(true);
+
+    // Instant ~69KB full-map preview rendered in a dedicated pane BELOW tilePane (200)
+    // so crisp high-res z=2..5 tiles always render on top of the preview
+    const previewPane = map.createPane('previewPane');
+    previewPane.style.zIndex = '150';
+    previewPane.style.pointerEvents = 'none';
+    L.imageOverlay(`${baseUrl}map-preview.jpg`, bounds, {
+      pane: 'previewPane',
+      interactive: false,
+    }).addTo(map);
+
+    const tileLayer = L.tileLayer(`${baseUrl}tiles/{z}/{x}/{y}.jpg`, {
       tileSize: mapMeta.tileSize,
       minZoom: 0,
       maxZoom: MAX_DISPLAY_ZOOM,
       maxNativeZoom: MAX_NATIVE_ZOOM,
       noWrap: true,
       bounds,
-      keepBuffer: 4,
+      zIndex: 2,
+      keepBuffer: 2,
       updateWhenIdle: false,
-      updateWhenZooming: true,
-    }).addTo(map);
+      updateWhenZooming: false,
+    });
+
+    tileLayer.on('loading', () => setMapLoading(true));
+    tileLayer.on('load', () => setMapLoading(false));
+    tileLayer.addTo(map);
 
     map.fitBounds(bounds, { padding: [20, 20] });
 
@@ -223,7 +284,7 @@ export function LeonidaMap({
     el.addEventListener('gesturestart', onGestureStart, { passive: false } as AddEventListenerOptions);
     el.addEventListener('gesturechange', onGestureChange, { passive: false } as AddEventListenerOptions);
 
-    // High-responsiveness touchscreen two-finger pinch zoom (1.6x responsive gain)
+    // High-responsiveness touchscreen two-finger pinch zoom (never intercepts 1-finger taps!)
     let pinchLastDist = 0;
     const onTouchStart = (e: TouchEvent) => {
       if (e.touches.length === 2) {
@@ -259,7 +320,7 @@ export function LeonidaMap({
       }
     };
     const onTouchEnd = (e: TouchEvent) => {
-      if (e.touches.length < 2) {
+      if (pinchLastDist > 0 && e.touches.length < 2) {
         pinchLastDist = 0;
         map.dragging.enable();
       }
@@ -268,8 +329,11 @@ export function LeonidaMap({
     el.addEventListener('touchstart', onTouchStart, { passive: true });
     el.addEventListener('touchmove', onTouchMove, { passive: false });
     el.addEventListener('touchend', onTouchEnd, { passive: true });
+    el.addEventListener('touchcancel', onTouchEnd, { passive: true });
 
     map.on('click', () => {
+      // Prevent delayed iOS Safari synthetic click after marker tap from clearing selection
+      if (Date.now() - lastMarkerTapRef.current.ts < 400) return;
       onSelectRef.current(null);
     });
 
@@ -279,47 +343,158 @@ export function LeonidaMap({
 
     return () => {
       if (rafId !== null) cancelAnimationFrame(rafId);
+      if (loadSettleTimer !== null) window.clearTimeout(loadSettleTimer);
+      if (safetyClearTimer !== null) window.clearTimeout(safetyClearTimer);
       el.removeEventListener('wheel', onWheel);
       el.removeEventListener('gesturestart', onGestureStart);
       el.removeEventListener('gesturechange', onGestureChange);
       el.removeEventListener('touchstart', onTouchStart);
       el.removeEventListener('touchmove', onTouchMove);
       el.removeEventListener('touchend', onTouchEnd);
+      el.removeEventListener('touchcancel', onTouchEnd);
+      for (const entry of markersRef.current.values()) {
+        entry.cleanupTouch?.();
+      }
+      markersRef.current.clear();
       map.remove();
       mapRef.current = null;
       layerGroupRef.current = null;
     };
   }, []);
 
+  // Build/sync markers only when the filtered locations list changes (preserves DOM across selection!)
   useEffect(() => {
     const group = layerGroupRef.current;
     if (!group) return;
+
+    for (const entry of markersRef.current.values()) {
+      entry.cleanupTouch?.();
+    }
+    markersRef.current.clear();
     group.clearLayers();
 
+    // Only bind hover tooltips on fine-pointer hover-capable devices to prevent iOS Safari double-tap hover trap
+    const supportsHoverTooltip =
+      typeof window !== 'undefined' &&
+      window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+
     for (const loc of locations) {
-      const isSelected = loc.id === selectedId;
-      const isVisited = visitedIds.has(loc.id);
+      const isSelected = loc.id === selectedIdRef.current;
+      const isVisited = visitedIdsRef.current.has(loc.id);
 
       const marker = L.marker(pctToLatLng(loc.coords), {
         icon: buildMarkerIcon(loc, isSelected, isVisited),
         zIndexOffset: isSelected ? 900 : loc.condition ? 150 : 0,
       });
 
-      marker.bindTooltip(buildTooltipHtml(loc), {
-        direction: 'auto',
-        offset: [0, -10],
-        className: 'leonida-tooltip',
-        opacity: 1,
-      });
+      if (supportsHoverTooltip) {
+        marker.bindTooltip(buildTooltipHtml(loc), {
+          direction: 'auto',
+          offset: [0, -10],
+          className: 'leonida-tooltip',
+          opacity: 1,
+        });
+      }
+
+      const selectThisLocation = () => {
+        const now = Date.now();
+        if (lastMarkerTapRef.current.id === loc.id && now - lastMarkerTapRef.current.ts < 350) {
+          return;
+        }
+        lastMarkerTapRef.current = { id: loc.id, ts: now };
+        marker.closeTooltip();
+        onSelectRef.current(loc);
+      };
 
       marker.on('click', (e) => {
         L.DomEvent.stopPropagation(e);
-        onSelectRef.current(loc);
+        selectThisLocation();
       });
 
       marker.addTo(group);
+
+      // Native crisp 1-finger tap handler for iOS Safari / mobile touch reliability
+      const markerEl = marker.getElement();
+      let cleanupTouch: (() => void) | undefined;
+      if (markerEl) {
+        let tapStart: { x: number; y: number; t: number } | null = null;
+
+        const handleTouchStart = (e: TouchEvent) => {
+          if (e.touches.length === 1) {
+            tapStart = {
+              x: e.touches[0].clientX,
+              y: e.touches[0].clientY,
+              t: Date.now(),
+            };
+          } else {
+            tapStart = null;
+          }
+        };
+
+        const handleTouchMove = (e: TouchEvent) => {
+          if (!tapStart || e.touches.length !== 1) {
+            tapStart = null;
+            return;
+          }
+          const dx = e.touches[0].clientX - tapStart.x;
+          const dy = e.touches[0].clientY - tapStart.y;
+          if (Math.hypot(dx, dy) > 10) {
+            tapStart = null;
+          }
+        };
+
+        const handleTouchEnd = (e: TouchEvent) => {
+          if (!tapStart || e.changedTouches.length !== 1) {
+            tapStart = null;
+            return;
+          }
+          const dx = e.changedTouches[0].clientX - tapStart.x;
+          const dy = e.changedTouches[0].clientY - tapStart.y;
+          const dt = Date.now() - tapStart.t;
+          tapStart = null;
+
+          if (Math.hypot(dx, dy) <= 10 && dt < 450) {
+            // Do NOT stopPropagation here: Leaflet's L.Draggable listens for touchend on document to finish _onUp.
+            // lastMarkerTapRef already guards map.on('click') from clearing selection.
+            selectThisLocation();
+          }
+        };
+
+        const handleTouchCancel = () => {
+          tapStart = null;
+        };
+
+        markerEl.addEventListener('touchstart', handleTouchStart, { passive: true });
+        markerEl.addEventListener('touchmove', handleTouchMove, { passive: true });
+        markerEl.addEventListener('touchend', handleTouchEnd, { passive: true });
+        markerEl.addEventListener('touchcancel', handleTouchCancel, { passive: true });
+
+        cleanupTouch = () => {
+          markerEl.removeEventListener('touchstart', handleTouchStart);
+          markerEl.removeEventListener('touchmove', handleTouchMove);
+          markerEl.removeEventListener('touchend', handleTouchEnd);
+          markerEl.removeEventListener('touchcancel', handleTouchCancel);
+        };
+      }
+
+      markersRef.current.set(loc.id, { marker, loc, cleanupTouch });
     }
-  }, [locations, selectedId, visitedIds]);
+  }, [locations]);
+
+  // Update selected & visited visual state in-place without recreating marker DOM nodes
+  useEffect(() => {
+    for (const [id, entry] of markersRef.current.entries()) {
+      const isSelected = id === selectedId;
+      const isVisited = visitedIds.has(id);
+      const el = entry.marker.getElement();
+      const dotHit = el?.querySelector('.leonida-dot-hit');
+      if (dotHit) {
+        dotHit.classList.toggle('is-selected', isSelected);
+        dotHit.classList.toggle('is-visited', isVisited);
+      }
+      entry.marker.setZIndexOffset(isSelected ? 900 : entry.loc.condition ? 150 : 0);
+    }
+  }, [selectedId, visitedIds]);
 
   useEffect(() => {
     const map = mapRef.current;
