@@ -1,6 +1,7 @@
 import {
   Check,
   Crosshair,
+  ExternalLink,
   Lock,
   Radio,
   Timer,
@@ -97,9 +98,24 @@ export function DetailPanel({
         </button>
       </div>
 
-      {/* Single Minimalist Description Block */}
+      {/* Single Minimalist Description Block + Zero-Spoiler Source Chip */}
       <div className="px-4 py-3.5 border-t border-white/[0.07] overflow-y-auto">
         <p className="text-[13.5px] leading-[1.68] text-white/88">{location.description}</p>
+
+        {location.sourceUrl && (
+          <div className="mt-3 flex items-center">
+            <a
+              href={location.sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={`查看来源（${location.sourceLabel}）`}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.04] hover:bg-white/[0.09] border border-white/[0.08] hover:border-white/[0.16] text-[11px] font-medium text-white/55 hover:text-white/90 transition-colors whitespace-nowrap max-w-full"
+            >
+              <ExternalLink className="w-3 h-3 shrink-0 text-[#2EE6D6]/75" />
+              <span className="truncate">来源 · {location.sourceLabel}</span>
+            </a>
+          </div>
+        )}
       </div>
 
       {/* Compact Footer */}

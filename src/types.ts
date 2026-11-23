@@ -25,6 +25,10 @@ export interface LocationItem {
   coords: [number, number];
   /** Concise, zero-spoiler guidance combining where to look and how to interact */
   description: string;
+  /** Direct canonical source guide URL (never shown verbatim in UI to avoid URL-slug spoilers) */
+  sourceUrl: string;
+  /** Short publisher name shown on source chip (e.g. IGN, PowerPyx, Beebom) */
+  sourceLabel: string;
   /** Optional progression / time / tool / weather condition (shows lock icon) */
   condition?: UnlockCondition;
   /** Optional WAiNK app scan tag (non-spoiler) */
