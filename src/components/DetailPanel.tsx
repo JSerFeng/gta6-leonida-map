@@ -68,7 +68,12 @@ export function DetailPanel({
           <h2 className="text-[16.5px] font-bold text-white leading-snug tracking-tight">
             {location.name}
           </h2>
-          <p className="text-[11.5px] text-white/45 mt-0.5">{location.regionLabel}</p>
+          <p className="text-[11.5px] text-white/45 mt-0.5">
+            {location.regionLabel}
+            {location.precision === 'area' && (
+              <span className="text-white/35"> · 大致区域</span>
+            )}
+          </p>
 
           {/* Compact Single-Line Condition Pill */}
           {location.condition && (

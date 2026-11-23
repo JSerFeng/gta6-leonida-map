@@ -29,6 +29,8 @@ export interface LocationItem {
   sourceUrl: string;
   /** Short publisher name shown on source chip (e.g. IGN, PowerPyx, Beebom) */
   sourceLabel: string;
+  /** Pinpoint accuracy: omit or 'exact' for screenshot-aligned spot; 'area' for roaming/broad zone */
+  precision?: 'exact' | 'area';
   /** Optional progression / time / tool / weather condition (shows lock icon) */
   condition?: UnlockCondition;
   /** Optional WAiNK app scan tag (non-spoiler) */

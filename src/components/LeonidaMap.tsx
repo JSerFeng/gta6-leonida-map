@@ -45,6 +45,7 @@ function escapeHtml(str: string): string {
 
 function buildMarkerIcon(loc: LocationItem, isSelected: boolean, isVisited: boolean): L.DivIcon {
   const meta = CATEGORY_MAP[loc.category];
+  const isArea = loc.precision === 'area';
   const lockBadge = loc.condition
     ? `<span class="leonida-dot-lock ${loc.condition.type === 'missable' ? 'is-missable' : ''}">${LOCK_SVG}</span>`
     : '';
@@ -52,7 +53,7 @@ function buildMarkerIcon(loc: LocationItem, isSelected: boolean, isVisited: bool
   return L.divIcon({
     className: 'leonida-marker-wrapper',
     html: `
-      <div class="leonida-dot-hit ${isSelected ? 'is-selected' : ''} ${isVisited ? 'is-visited' : ''}"
+      <div class="leonida-dot-hit ${isSelected ? 'is-selected' : ''} ${isVisited ? 'is-visited' : ''} ${isArea ? 'is-area' : ''}"
            style="--pin-color: ${meta.color}; --pin-glow: ${meta.glow};">
         <span class="leonida-dot"></span>
         ${lockBadge}
